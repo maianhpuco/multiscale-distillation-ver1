@@ -9,7 +9,7 @@ from src.multi_distill import *
 from src.dino import *
 from PIL import Image 
 from src.utils import get_project_root
-
+from src.dino import MultiCropWrapper, Head, DINOLoss
 
 PROJECT_DIR = get_project_root() 
 print(f"Project dir: {PROJECT_DIR}")

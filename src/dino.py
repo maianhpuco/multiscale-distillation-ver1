@@ -321,7 +321,7 @@ class Head(nn.Module):
         x = self.last_layer(x)
         return x
     
-class Loss(nn.Module):
+class DINOLoss(nn.Module):
     def __init__(
             self,
             out_dim,
@@ -381,6 +381,8 @@ class Loss(nn.Module):
         self.center = self.center * self.center_momentum + batch_center * (
             1 - self.center_momentum
         )
+ 
+ 
  
  
 class MultiCropWrapper(nn.Module):
