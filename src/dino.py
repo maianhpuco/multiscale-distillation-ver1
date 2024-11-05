@@ -320,14 +320,14 @@ class Head(nn.Module):
         x = nn.functional.normalize(x, dim=-1, p=2)
         x = self.last_layer(x)
         return x
-
+    
 class DINOLoss(nn.Module):
     def __init__(
             self,
             out_dim,
-            teacher_temp=0.04,  # T is higher -> sharpen -> prevent uniform distribution
-            student_temp=0.1,  # Prevent student from mode collapsing
-            center_momentum=0.9
+            teacher_temp = 0.04, # T is higher -> sharpen -> make sure student does not predict the result that lead to the uniform distribution
+            student_temp = 0.1, # prevent student from mode collapsing
+            center_momentum = 0.9
     ):
         super().__init__()
         self.teacher_temp = teacher_temp
@@ -339,82 +339,46 @@ class DINOLoss(nn.Module):
             self,
             student_output,
             teacher_output,
-
     ):
-        # Apply temperature scaling
-        student_output = student_output / self.student_temp
-        teacher_output = (teacher_output - self.center) / self.teacher_temp
+        student_temp = [s / self.student_temp for s in student_output]
+        teacher_temp = [(t - self.center) / self.teacher_temp for t in teacher_output]
 
-        # Compute softmax for teacher and log-softmax for student
-        student_sm = F.log_softmax(student_output, dim=-1)
-        teacher_sm = F.softmax(teacher_output, dim=-1).detach()  # Stop gradients from teacher
+        student_sm = [F.log_softmax(s, dim=-1) for s in student_temp]
+        teacher_sm = [F.softmax(t, dim=-1).detach() for t in teacher_temp]
 
-        # Compute loss by broadcasting teacher_sm to match student_sm shape
-        loss = torch.sum(-teacher_sm * student_sm, dim=-1)  # (256,)
+        total_loss = 0
+        n_loss_terms = 0
 
+        for t_ix, t in enumerate(teacher_sm):
+            for s_ix, s in enumerate(student_sm):
+                if t_ix == s_ix:
+                    continue
 
-        total_loss = loss.mean()  # Average over all samples
+                loss = torch.sum(-t * s, dim=-1)  # (n_samples,)
+                total_loss += loss.mean()  # scalar
+                n_loss_terms += 1
 
-        # Update center based on teacher output
+        total_loss /= n_loss_terms
         self.update_center(teacher_output)
 
         return total_loss
 
     @torch.no_grad()
     def update_center(self, teacher_output):
-        """Update center used for teacher output with exponential moving average.
+        """Update center used for teacher output.
+
+        Compute the exponential moving average.
 
         Parameters
         ----------
-        teacher_output : torch.Tensor
-            Tensor of shape `(1, out_dim)`, representing the single teacher output.
+        teacher_output : tuple
+            Tuple of tensors of shape `(n_samples, out_dim)` where each
+            tensor represents a different crop.
         """
-        # Calculate the batch mean of the teacher output
-        batch_center = teacher_output.mean(dim=0, keepdim=True)  # Shape: (1, out_dim)
-
-        # Update the center with exponential moving average
-        self.center = self.center * self.center_momentum + batch_center * (1 - self.center_momentum)
+        batch_center = torch.cat(teacher_output).mean(
+            dim=0, keepdim=True
+        )  # (1, out_dim)
+        self.center = self.center * self.center_momentum + batch_center * (
+            1 - self.center_momentum
+        )
  
-class MultiCropWrapper(nn.Module):
-    """Convenience class for forward pass of multiple crops.
-
-    Parameters
-    ----------
-    backbone : timm.models.vision_transformer.VisionTransformer
-        Instantiated Vision Transformer. Note that we will take the `head`
-        attribute and replace it with `nn.Identity`.
-
-    new_head : Head
-        New head that is going to be put on top of the `backbone`.
-    """
-    def __init__(self, backbone, new_head):
-        super().__init__()
-        backbone.head = nn.Identity()  # deactivate original head
-        self.backbone = backbone
-        self.new_head = new_head
-
-    def forward(self, x):
-        """Run the forward pass.
-
-        The different crops are concatenated along the batch dimension
-        and then a single forward pass is fun. The resulting tensor
-        is then chunked back to per crop tensors.
-
-        Parameters
-        ----------
-        x : list
-            List of `torch.Tensor` each of shape `(n_samples, 3, size, size)`.
-
-        Returns
-        -------
-        tuple
-            Tuple of `torch.Tensor` each of shape `(n_samples, out_dim)` where
-            `output_dim` is determined by `Head`.
-        """
-        n_crops = len(x)
-        concatenated = torch.cat(x, dim=0)  # (n_samples * n_crops, 3, size, size)
-        cls_embedding = self.backbone(concatenated)  # (n_samples * n_crops, in_dim)
-        logits = self.new_head(cls_embedding)  # (n_samples * n_crops, out_dim)
-        chunks = logits.chunk(n_crops)  # n_crops * (n_samples, out_dim)
-
-        return chunks 
