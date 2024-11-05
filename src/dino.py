@@ -321,7 +321,7 @@ class Head(nn.Module):
         x = self.last_layer(x)
         return x
     
-class DINOLoss(nn.Module):
+class Loss(nn.Module):
     def __init__(
             self,
             out_dim,
@@ -382,3 +382,47 @@ class DINOLoss(nn.Module):
             1 - self.center_momentum
         )
  
+ 
+ class MultiCropWrapper(nn.Module):
+    """Convenience class for forward pass of multiple crops.
+
+    Parameters
+    ----------
+    backbone : timm.models.vision_transformer.VisionTransformer
+        Instantiated Vision Transformer. Note that we will take the `head`
+        attribute and replace it with `nn.Identity`.
+
+    new_head : Head
+        New head that is going to be put on top of the `backbone`.
+    """
+    def __init__(self, backbone, new_head):
+        super().__init__()
+        backbone.head = nn.Identity()  # deactivate original head
+        self.backbone = backbone
+        self.new_head = new_head
+
+    def forward(self, x):
+        """Run the forward pass.
+
+        The different crops are concatenated along the batch dimension
+        and then a single forward pass is fun. The resulting tensor
+        is then chunked back to per crop tensors.
+
+        Parameters
+        ----------
+        x : list
+            List of `torch.Tensor` each of shape `(n_samples, 3, size, size)`.
+
+        Returns
+        -------
+        tuple
+            Tuple of `torch.Tensor` each of shape `(n_samples, out_dim)` where
+            `output_dim` is determined by `Head`.
+        """
+        n_crops = len(x)
+        concatenated = torch.cat(x, dim=0)  # (n_samples * n_crops, 3, size, size)
+        cls_embedding = self.backbone(concatenated)  # (n_samples * n_crops, in_dim)
+        logits = self.new_head(cls_embedding)  # (n_samples * n_crops, out_dim)
+        chunks = logits.chunk(n_crops)  # n_crops * (n_samples, out_dim)
+
+        return chunks 
