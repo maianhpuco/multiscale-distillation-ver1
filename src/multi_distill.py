@@ -3,7 +3,7 @@ import torch.nn as nn
 import torchvision.transforms as transforms 
 from einops import rearrange, repeat
  
-class MultiCropWrapper(nn.Module):
+class MultiscaleDistillaionCropWrapper(nn.Module):
     """Convenience class for forward pass of multiple crops.
 
     Parameters
