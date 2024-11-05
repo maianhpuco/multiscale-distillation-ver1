@@ -383,7 +383,7 @@ class Loss(nn.Module):
         )
  
  
- class MultiCropWrapper(nn.Module):
+class MultiCropWrapper(nn.Module):
     """Convenience class for forward pass of multiple crops.
 
     Parameters
