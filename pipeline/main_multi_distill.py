@@ -9,7 +9,9 @@ from src.multi_distill import *
 from src.dino import *
 from PIL import Image 
 from src.utils import get_project_root
-from src.dino import MultiscaleDistillaionCropWrapper, Head, DINOLoss
+from src.multi_distill import MultiscaleDistillaionCropWrapper
+from src.dino import Loss, Head, vit_small 
+PYTORCH_ENABLE_MPS_FALLBACK=1 
 
 PROJECT_DIR = get_project_root() 
 print(f"Project dir: {PROJECT_DIR}")
@@ -35,17 +37,18 @@ def get_args():
 def initialize_models(args):
     student_device = torch.device(args.device)
     teacher_device = torch.device(args.device)
-    
-    student256_vit = timm.create_model('vit_small_patch16_224', img_size=256, pretrained=True, num_classes=args.out_dim)
-    teacher_vit = timm.create_model('vit_small_patch16_224', img_size=256, pretrained=True, num_classes=args.out_dim)
+    student256_vit =  vit_small(patch_size=16, image_size=256)   
+    teacher_vit =  vit_small(patch_size=16, image_size=256)    
+    # student256_vit = timm.create_model('vit_small_patch16_224', img_size=256, pretrained=True, num_classes=args.out_dim)
+    # teacher_vit = timm.create_model('vit_small_patch16_224', img_size=256, pretrained=True, num_classes=args.out_dim)
     
     student256 = MultiscaleDistillaionCropWrapper(
         student256_vit,
-        Head(768, args.out_dim, norm_last_layer=args.norm_last_layer)
+        Head(384, args.out_dim, norm_last_layer=args.norm_last_layer)
     )
     teacher = MultiscaleDistillaionCropWrapper(
         teacher_vit,
-        Head(768, args.out_dim)
+        Head(384, args.out_dim)
     )
     
     student256.to(student_device)

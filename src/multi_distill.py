@@ -81,11 +81,15 @@ class MultiscaledDistillationModel(nn.Module):
         self.teacher.eval() 
 
         resize_transform = transforms.Resize((self.patch_size, self.patch_size))
-        x_teacher = resize_transform(x.squeeze(0)).unsqueeze(0).to(self.teacher_device)
-        teacher_logits, teacher_embeddings = self.teacher(x_teacher)
-        
-
-                
+        print("---shape of x", x.shape)
+        if x.shape[0] == 1:
+            
+            x_teacher = resize_transform(x.squeeze(0)).to(self.teacher_device)
+            x_teacher = x_teacher.unsqueeze(0) 
+            print("x_teacher.shape", x_teacher.shape)
+        else: 
+            x_teacher = resize_transform(x.squeeze(0)).to(self.teacher_device) 
+        teacher_logits, teacher_embeddings = self.teacher(x_teacher)        
         return student_logits, student_embeddings, teacher_logits, teacher_embeddings
     
     def update_moving_average(self):
@@ -104,3 +108,68 @@ class MultiscaledDistillationModel(nn.Module):
 
         return img_new, w_256, h_256
 
+class Loss(nn.Module):
+    def __init__(
+            self,
+            out_dim,
+            teacher_temp = 0.04, # T is higher -> sharpen -> make sure student does not predict the result that lead to the uniform distribution
+            student_temp = 0.1, # prevent student from mode collapsing
+            center_momentum = 0.9
+    ):
+        super().__init__()
+        self.teacher_temp = teacher_temp
+        self.student_temp = student_temp
+        self.center_momentum = center_momentum
+        self.register_buffer("center", torch.zeros(1, out_dim))
+
+    def forward(
+            self,
+            student_output,
+            teacher_output,
+    ):
+        student_temp = [s / self.student_temp for s in student_output]
+        teacher_temp = [(t - self.center) / self.teacher_temp for t in teacher_output]
+
+        student_sm = [F.log_softmax(s, dim=-1) for s in student_temp]
+        teacher_sm = [F.softmax(t, dim=-1).detach() for t in teacher_temp]
+
+        total_loss = 0
+        n_loss_terms = 0
+
+        for t_ix, t in enumerate(teacher_sm):
+            for s_ix, s in enumerate(student_sm):
+                if t_ix == s_ix:
+                    continue
+
+                loss = torch.sum(-t * s, dim=-1)  # (n_samples,)
+                total_loss += loss.mean()  # scalar
+                n_loss_terms += 1
+
+        total_loss /= n_loss_terms
+        self.update_center(teacher_output)
+
+        return total_loss
+
+    @torch.no_grad()
+    def update_center(self, teacher_output):
+        """Update center used for teacher output.
+
+        Compute the exponential moving average.
+
+        Parameters
+        ----------
+        teacher_output : tuple
+            Tuple of tensors of shape `(n_samples, out_dim)` where each
+            tensor represents a different crop.
+        """
+        teacher_output = (teacher_output)
+        batch_center = torch.cat(teacher_output).mean(
+            dim=0, keepdim=True
+        )  # (1, out_dim)
+        self.center = self.center * self.center_momentum + batch_center * (
+            1 - self.center_momentum
+        )
+ 
+ 
+ 
+  
