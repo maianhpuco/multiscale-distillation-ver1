@@ -2,6 +2,8 @@ import os
 from src.utils import get_project_root
 from types import SimpleNamespace
 import torch
+import torch.nn as nn
+import torch.nn.functional as F 
 import timm
 from time import time
 from src.utils import * 
