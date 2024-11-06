@@ -55,7 +55,8 @@ class MultiscaledDistillationModel(nn.Module):
             image_size=4096, # test with 516 
             patch_size=256,  # test with 32
             student_device=torch.device('cpu'),
-            teacher_device=torch.device('cpu'),               # Match the output dim of teacher model
+            teacher_device=torch.device('cpu'),      
+            args = None# Match the output dim of teacher model
         ):
         super().__init__()
         self.student        = student_model.to(student_device)
@@ -64,6 +65,7 @@ class MultiscaledDistillationModel(nn.Module):
         self.teacher_device = teacher_device
         self.image_size     = image_size
         self.patch_size     = patch_size
+        self.args           = args 
          
     def forward(self, x):
         
@@ -82,8 +84,16 @@ class MultiscaledDistillationModel(nn.Module):
         x_teacher = resize_transform(x.squeeze(0)).unsqueeze(0).to(self.teacher_device)
         teacher_logits, teacher_embeddings = self.teacher(x_teacher)
         
-        return student_logits, student_embeddings, teacher_logits, teacher_embeddings
 
+                
+        return student_logits, student_embeddings, teacher_logits, teacher_embeddings
+    
+    def update_moving_average(self):
+        with torch.no_grad():
+            for student_ps, teacher_ps in zip(self.student.parameters(), self.teacher.parameters()):
+                teacher_ps.data.mul_(self.args.momentum_teacher)
+                teacher_ps.data.add_((1 - self.args.momentum_teacher) * student_ps.detach().data)  
+    
     def prepare_img_tensor(self, img: torch.Tensor):
         patch_size = self.patch_size
         make_divisble = lambda l, patch_size: (l - (l % patch_size))
