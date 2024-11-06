@@ -163,10 +163,10 @@ class Loss(nn.Module):
             Tuple of tensors of shape `(n_samples, out_dim)` where each
             tensor represents a different crop.
         """
-        teacher_output = (teacher_output)
-        batch_center = torch.cat(teacher_output).mean(
-            dim=0, keepdim=True
-        )  # (1, out_dim)
+        if isinstance(teacher_output, (list, tuple)):
+            batch_center = torch.cat(teacher_output).mean(dim=0, keepdim=True)
+        else:
+            batch_center = teacher_output.mean(dim=0, keepdim=True)  
         self.center = self.center * self.center_momentum + batch_center * (
             1 - self.center_momentum
         )
