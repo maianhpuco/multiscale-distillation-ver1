@@ -1,6 +1,7 @@
 import torch 
 import torch.nn as nn  
 import torch.nn.functional as F  
+
 import torchvision.transforms as transforms 
 from einops import rearrange, repeat
  
@@ -82,12 +83,9 @@ class MultiscaledDistillationModel(nn.Module):
         self.teacher.eval() 
 
         resize_transform = transforms.Resize((self.patch_size, self.patch_size))
-        print("---shape of x", x.shape)
         if x.shape[0] == 1:
-            
             x_teacher = resize_transform(x.squeeze(0)).to(self.teacher_device)
             x_teacher = x_teacher.unsqueeze(0) 
-            print("x_teacher.shape", x_teacher.shape)
         else: 
             x_teacher = resize_transform(x.squeeze(0)).to(self.teacher_device) 
         teacher_logits, teacher_embeddings = self.teacher(x_teacher)        
