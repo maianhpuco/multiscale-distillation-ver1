@@ -14,7 +14,7 @@ class DataAugmentation():
     ):
         self.n_local_crops = n_local_crops
         
-        self.img_size = img_size  # Size for initial resize
+        self.size = size  # Size for initial resize
 
         # Initial resizing and normalization transformation to [-1, 1]
         self.initial_transform = transforms.Compose([
