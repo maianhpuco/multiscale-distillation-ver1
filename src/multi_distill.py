@@ -52,34 +52,40 @@ class MultiscaledDistillationModel(nn.Module):
             self,
             student_model=None,
             teacher_model=None,
+            image_size=4096, # test with 516 
+            patch_size=256,  # test with 32
             student_device=torch.device('cpu'),
             teacher_device=torch.device('cpu'),               # Match the output dim of teacher model
         ):
         super().__init__()
-        self.student = student_model.to(student_device)
-        self.teacher = teacher_model.to(teacher_device)
+        self.student        = student_model.to(student_device)
+        self.teacher        = teacher_model.to(teacher_device)
         self.student_device = student_device
         self.teacher_device = teacher_device
-
+        self.image_size     = image_size
+        self.patch_size     = patch_size
+         
     def forward(self, x):
+        
         batch_256, w_256, h_256 = self.prepare_img_tensor(x)                    # 1. [1 x 3 x W x H]
-        batch_256 = batch_256.unfold(2, 256, 256).unfold(3, 256, 256)           # 2. [1 x 3 x w_256 x h_256 x 256 x 256]
+        batch_256 = batch_256.unfold(2, self.patch_size , self.patch_size ).unfold(3, self.patch_size , self.patch_size)           # 2. [1 x 3 x w_256 x h_256 x 256 x 256]
         batch_256 = rearrange(batch_256, 'b c p1 p2 w h -> (b p1 p2) c w h')    # 2. [B x 3 x 256 x 256], where B = (1*w_256*h_256)
 
 
-        for mini_bs in range(0, batch_256.shape[0], 256):
-            minibatch_256 = batch_256[mini_bs:mini_bs+256].to(self.student_device, non_blocking=True)
+        for mini_bs in range(0, batch_256.shape[0], self.patch_size):
+            minibatch_256 = batch_256[mini_bs:mini_bs+self.patch_size].to(self.student_device, non_blocking=True)
             student_logits, student_embeddings = self.student(minibatch_256)
 
         self.teacher.eval() 
 
-        resize_transform = transforms.Resize((256, 256))
+        resize_transform = transforms.Resize((self.patch_size, self.patch_size))
         x_teacher = resize_transform(x.squeeze(0)).unsqueeze(0).to(self.teacher_device)
         teacher_logits, teacher_embeddings = self.teacher(x_teacher)
         
         return student_logits, student_embeddings, teacher_logits, teacher_embeddings
 
-    def prepare_img_tensor(self, img: torch.Tensor, patch_size=256):
+    def prepare_img_tensor(self, img: torch.Tensor):
+        patch_size = self.patch_size
         make_divisble = lambda l, patch_size: (l - (l % patch_size))
         b, c, w, h = img.shape
         load_size = make_divisble(w, patch_size), make_divisble(h, patch_size)
