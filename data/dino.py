@@ -19,7 +19,7 @@ class DataAugmentation():
         # Initial resizing and normalization transformation to [-1, 1]
         self.initial_transform = transforms.Compose([
             transforms.Resize(self.size),  # Resize all images to specified size
-            transforms.ToTensor(),            # Convert PIL images to PyTorch tensors
+            # transforms.ToTensor(),            # Convert PIL images to PyTorch tensors
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))  # Normalize to [-1, 1]
         ])
  
