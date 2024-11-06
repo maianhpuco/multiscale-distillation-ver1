@@ -9,8 +9,8 @@ from src.multi_distill import *
 from src.dino import *
 from PIL import Image 
 from src.utils import get_project_root
-from src.multi_distill import MultiscaleDistillaionCropWrapper
-from src.dino import Loss, Head, vit_small 
+from src.multi_distill import MultiscaleDistillaionCropWrapper, Loss
+from src.dino import Head, vit_small 
 PYTORCH_ENABLE_MPS_FALLBACK=1 
 
 PROJECT_DIR = get_project_root() 
