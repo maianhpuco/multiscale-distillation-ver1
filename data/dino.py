@@ -17,11 +17,11 @@ class DataAugmentation():
         self.size = size  # Size for initial resize
 
         # Initial resizing and normalization transformation to [-1, 1]
-        self.initial_transform = transforms.Compose([
-            transforms.Resize(self.size),  # Resize all images to specified size
-            # transforms.ToTensor(),            # Convert PIL images to PyTorch tensors
-            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))  # Normalize to [-1, 1]
-        ])
+        # self.initial_transform = transforms.Compose([
+        #     transforms.Resize(self.size),  # Resize all images to specified size
+        #     # transforms.ToTensor(),            # Convert PIL images to PyTorch tensors
+        #     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))  # Normalize to [-1, 1]
+        # ])
  
         RandomGaussianBlur = lambda p: transforms.RandomApply(  # noqa
             [transforms.GaussianBlur(kernel_size=5, sigma=(0.1, 2))],
@@ -47,6 +47,7 @@ class DataAugmentation():
 
         normalize = transforms.Compose(
             [
+                transforms.Resize(self.size), 
                 transforms.ToTensor(),
                 transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
             ]
@@ -106,7 +107,7 @@ class DataAugmentation():
             List of `torch.Tensor` representing different views of
             the input `img`.
         """
-        img = self.initial_transform(img) 
+        # img = self.initial_transform(img) 
         all_crops = []
         all_crops.append(self.global_1(img))
         all_crops.append(self.global_2(img))
